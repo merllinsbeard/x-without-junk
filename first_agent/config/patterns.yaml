@@ -1,0 +1,48 @@
+# Marketing patterns (regex)
+marketing:
+  - "\\b🚀\\b"
+  - "launching\\s+soon"
+  - "early\\s+access"
+  - "limited\\s+time"
+  - "\\d+%\\s+off"
+  - "buy\\s+now"
+  - "shop\\s+now"
+  - "link\\s+in\\s+bio"
+  - "follow\\s+for\\s+more"
+  - "dm\\s+me"
+  - "subscribe\\s+now"
+
+# Self-improvement keywords (string match)
+self_improvement:
+  - "morning routine"
+  - "productivity hack"
+  - "life coach"
+  - "mindset"
+  - "grindset"
+  - "hustle"
+  - "10x"
+  - "growth mindset"
+  - "affirmation"
+  - "manifest"
+  - "self-care"
+  - "wellness tips"
+  - "habit tracker"
+
+# Spam patterns (regex)
+spam:
+  - "(?:https?://t\\.co/)\\S{10}"
+  - "free\\s+(?:money|crypto|btc|eth)"
+  - "click\\s+here"
+  - "claim\\s+now"
+  - "giveaway"
+  - "contest\\s+alert"
+
+# Low quality patterns (regex)
+low_quality:
+  - "^rt\\s+"
+  - "^\\s*[👍❤️😂🔥]+"
+  - "^\\s*\\.\\s*$"
+  - "this\\."
+  - "^wow$"
+  - "^amazing$"
+  - "^incredible$"

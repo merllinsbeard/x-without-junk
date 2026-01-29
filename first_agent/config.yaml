@@ -1,0 +1,22 @@
+# Agent Configuration
+agent:
+  model: "claude-sonnet-4-5"
+  fallback_model: "claude-haiku-3-5"
+  max_budget_usd: 0.50
+  max_turns: 5
+
+# Prompt File Paths
+prompts:
+  system: "prompts/system.md"
+  analysis: "prompts/analysis.md"
+
+# Filter Configuration
+filters:
+  enabled: true
+  min_score: 30
+  patterns_file: "config/patterns.yaml"
+
+# Output Configuration
+output:
+  default_source: "timeline"
+  timestamp_format: "%Y%m%d_%H%M%S"

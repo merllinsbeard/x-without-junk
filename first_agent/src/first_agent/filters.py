@@ -2,11 +2,12 @@
 
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
 
 from first_agent.bird_client import Tweet
 
-# Patterns for content we want to filter out
+# Default patterns for content we want to filter out (used when no config provided)
 MARKETING_PATTERNS = [
     r"\b🚀\b",  # Rocket emoji (common in marketing)
     r"launching\s+soon",
@@ -80,6 +81,8 @@ class ContentFilter:
         filter_self_improvement: bool = True,
         filter_spam: bool = True,
         custom_keywords: list[str] | None = None,
+        patterns_file: str | Path | None = None,
+        config: dict | None = None,
     ):
         """Initialize the content filter.
 
@@ -89,12 +92,77 @@ class ContentFilter:
             filter_self_improvement: Filter out self-improvement content.
             filter_spam: Filter out spam and low-quality content.
             custom_keywords: Additional keywords to filter out.
+            patterns_file: Path to YAML file containing custom patterns.
+            config: Configuration dictionary (takes precedence over patterns_file).
         """
         self.min_engagement = min_engagement
         self.filter_marketing = filter_marketing
         self.filter_self_improvement = filter_self_improvement
         self.filter_spam = filter_spam
         self.custom_keywords = custom_keywords or []
+
+        # Load patterns from file or use defaults
+        self._load_patterns(patterns_file, config)
+
+    def _load_patterns(self, patterns_file: str | Path | None, config: dict | None) -> None:
+        """Load filter patterns from YAML file or config.
+
+        Args:
+            patterns_file: Path to YAML patterns file.
+            config: Configuration dictionary with filters.patterns key.
+        """
+        marketing = MARKETING_PATTERNS
+        self_improvement = SELF_IMPROVEMENT_KEYWORDS
+        spam = SPAM_PATTERNS
+        low_quality = LOW_QUALITY_PATTERNS
+
+        # Try loading from config dict first
+        if config and "filters" in config:
+            patterns_data = config["filters"].get("patterns", {})
+            if patterns_data:
+                marketing = patterns_data.get("marketing", MARKETING_PATTERNS)
+                self_improvement = patterns_data.get("self_improvement", SELF_IMPROVEMENT_KEYWORDS)
+                spam = patterns_data.get("spam", SPAM_PATTERNS)
+                low_quality = patterns_data.get("low_quality", LOW_QUALITY_PATTERNS)
+        elif patterns_file:
+            # Try loading from YAML file
+            patterns_path = Path(patterns_file)
+            if patterns_path.exists():
+                import yaml
+
+                with open(patterns_path, "r", encoding="utf-8") as f:
+                    patterns_data = yaml.safe_load(f) or {}
+
+                marketing = patterns_data.get("marketing", MARKETING_PATTERNS)
+                self_improvement = patterns_data.get("self_improvement", SELF_IMPROVEMENT_KEYWORDS)
+                spam = patterns_data.get("spam", SPAM_PATTERNS)
+                low_quality = patterns_data.get("low_quality", LOW_QUALITY_PATTERNS)
+
+        # Store loaded patterns
+        self.marketing_patterns = marketing
+        self.self_improvement_keywords = self_improvement
+        self.spam_patterns = spam
+        self.low_quality_patterns = low_quality
+
+    @classmethod
+    def from_config(cls, config: dict) -> "ContentFilter":
+        """Create ContentFilter from configuration dictionary.
+
+        Args:
+            config: Configuration dictionary with filters section.
+
+        Returns:
+            Configured ContentFilter instance.
+        """
+        filter_config = config.get("filters", {})
+
+        return cls(
+            min_engagement=filter_config.get("min_score", 30) // 10,  # Approximate mapping
+            filter_marketing=filter_config.get("enabled", True),
+            filter_self_improvement=filter_config.get("enabled", True),
+            filter_spam=filter_config.get("enabled", True),
+            config=config,
+        )
 
     def _check_patterns(self, text: str, patterns: list[str]) -> bool:
         """Check if text matches any of the given patterns.

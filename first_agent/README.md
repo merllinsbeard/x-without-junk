@@ -237,6 +237,8 @@ uv run news-parser analyze --source timeline --count 50
 
 ## Output Structure
 
+![Demo output](docs/demo.png)
+
 Reports are saved to the `output/` directory by default:
 
 ```
