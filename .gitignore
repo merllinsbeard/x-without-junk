@@ -41,6 +41,11 @@ output/*.md
 .env
 .env.local
 
+# User configuration
+config.yaml
+config/user_patterns.yaml
+prompts/custom_*.md
+
 # OS
 .DS_Store
 Thumbs.db

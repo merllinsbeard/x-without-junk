@@ -1,11 +1,11 @@
-# News Parser Agent 🐦
+# X Without Junk 🐦
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Claude Agent SDK](https://img.shields.io/badge/Claude_Agent_SDK-0.1.25+-green.svg)](https://github.com/anthropics/claude-agent-sdk)
 
-> A Python-based Claude Agent SDK application that fetches content from X.com,
-> filters out low-quality content, and generates structured Markdown reports.
+> A Python tool that fetches content from X.com using bird CLI,
+> filters out junk/marketing/spam, and generates clean Markdown reports.
 
 ## ⚡ Quick Start (5 min)
 
@@ -92,8 +92,8 @@ bird whoami
 
 ```bash
 # Clone repository
-git clone https://github.com/merllinsbeard/first_agent_claudesdk.git
-cd first_agent_claudesdk/first_agent
+git clone https://github.com/merllinsbeard/x-without-junk.git
+cd x-without-junk
 
 # Install dependencies
 uv sync
@@ -270,7 +270,6 @@ The agent filters out:
 ## Project Structure
 
 ```
-first_agent/
 ├── src/
 │   └── first_agent/      # Main package
 │       ├── __init__.py
@@ -280,6 +279,9 @@ first_agent/
 │       ├── filters.py    # Content filtering logic
 │       └── parsers.py    # Parse and structure content
 ├── output/               # Generated markdown reports
+├── docs/                 # Documentation and images
+├── config/               # Optional configuration files
+├── prompts/              # Custom prompt templates
 ├── .env.example          # Environment variables template
 ├── .env                  # Your local environment (gitignored)
 ├── pyproject.toml
@@ -298,6 +300,108 @@ The agent reads configuration from the `.env` file:
 | `ANTHROPIC_BASE_URL` | API base URL                  | `https://api.z.ai/api/anthropic` |
 
 To get an API key, visit [https://console.z.ai](https://console.z.ai).
+
+### Custom Configuration (Optional)
+
+You can customize the agent's behavior using YAML configuration files and custom prompt templates.
+
+#### Config File (`config.yaml`)
+
+Create a `config.yaml` file to override default settings:
+
+```yaml
+# Agent Configuration
+agent:
+  model: "claude-sonnet-4-5"
+  fallback_model: "claude-haiku-3-5"
+  max_budget_usd: 0.50
+  max_turns: 5
+
+# Prompt File Paths
+prompts:
+  system: "prompts/system.md"
+  analysis: "prompts/analysis.md"
+
+# Filter Configuration
+filters:
+  enabled: true
+  min_score: 30
+  patterns_file: "config/patterns.yaml"
+
+# Output Configuration
+output:
+  default_source: "timeline"
+  timestamp_format: "%Y%m%d_%H%M%S"
+```
+
+#### Custom Prompts
+
+Create custom prompt templates in Markdown:
+
+**`prompts/system.md`:**
+
+```markdown
+You are a specialized AI analyst focusing on machine learning research.
+Your task is to analyze tweets and extract technical insights...
+```
+
+**`prompts/analysis.md`:**
+
+```markdown
+Analyze these tweets.
+
+Tweets:
+{tweets}
+
+Focus your analysis on: {focus}
+...
+```
+
+#### Custom Filter Patterns
+
+Create `config/patterns.yaml` to customize filtering:
+
+```yaml
+# Marketing patterns (regex)
+marketing:
+  - "\\b🚀\\b"
+  - "launching\\s+soon"
+  # Add your patterns...
+
+# Self-improvement keywords
+self_improvement:
+  - "morning routine"
+  # Add your keywords...
+
+# Spam patterns
+spam:
+  - "free\\s+money"
+  # Add your patterns...
+
+# Low quality patterns
+low_quality:
+  - "^wow$"
+  # Add your patterns...
+```
+
+#### CLI Options
+
+Override config files with command-line options:
+
+```bash
+# Use custom config file
+news-parser --config /path/to/my_config.yaml timeline --analyze
+
+# Use custom prompts
+news-parser timeline --analyze \
+  --system-prompt my_system.md \
+  --analysis-prompt my_analysis.md
+
+# Use custom filter patterns
+news-parser timeline --analyze --patterns my_patterns.yaml
+```
+
+The default prompts are provided in English. You can create custom prompts in any language.
 
 ## 🔧 Troubleshooting
 

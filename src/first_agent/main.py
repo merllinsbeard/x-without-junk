@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional
 
 import typer
+import yaml
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -25,10 +26,83 @@ app = typer.Typer(
     add_completion=False,
 )
 
+# Global configuration (loaded at startup)
+_config: dict | None = None
+_config_path: Path | None = None
+_system_prompt_path: Path | None = None
+_analysis_prompt_path: Path | None = None
+_patterns_path: Path | None = None
 
-def _run_ai_analysis(tweets: list, source: str, save: bool = False, output: Optional[str] = None) -> None:
-    """Run AI analysis on filtered tweets, display and optionally save results."""
-    content_filter = ContentFilter()
+
+def load_config(config_path: str | None = None) -> dict:
+    """Load configuration from file, falling back to defaults.
+
+    Args:
+        config_path: Optional path to config file. If not provided, searches
+                     in default locations: config.yaml, ./config.yaml,
+                     ~/.config/news-parser/config.yaml.
+
+    Returns:
+        Configuration dictionary. Empty dict if no config found.
+    """
+    if config_path:
+        path = Path(config_path).expanduser()
+        if path.exists():
+            console.print(f"[dim]Loading config from: {path}[/dim]")
+            with open(path, "r", encoding="utf-8") as f:
+                return yaml.safe_load(f) or {}
+
+    # Try default locations
+    default_paths = [
+        Path("config.yaml"),
+        Path("./config.yaml"),
+        Path.home() / ".config" / "news-parser" / "config.yaml",
+    ]
+
+    for path in default_paths:
+        if path.exists():
+            console.print(f"[dim]Loading config from: {path}[/dim]")
+            with open(path, "r", encoding="utf-8") as f:
+                return yaml.safe_load(f) or {}
+
+    return {}
+
+
+def get_config() -> dict:
+    """Get the current configuration, loading if not already loaded.
+
+    Returns:
+        Configuration dictionary.
+    """
+    global _config
+    if _config is None:
+        _config = load_config(str(_config_path) if _config_path else None)
+    return _config
+
+
+def _run_ai_analysis(
+    tweets: list,
+    source: str,
+    save: bool = False,
+    output: Optional[str] = None,
+    system_prompt: Optional[str] = None,
+    analysis_prompt: Optional[str] = None,
+) -> None:
+    """Run AI analysis on filtered tweets, display and optionally save results.
+
+    Args:
+        tweets: List of Tweet objects to analyze.
+        source: Source identifier for the tweets.
+        save: If True, save with auto-timestamped name.
+        output: If set, save to this specific path.
+        system_prompt: Optional path to custom system prompt.
+        analysis_prompt: Optional path to custom analysis prompt.
+    """
+    config = get_config()
+    content_filter = ContentFilter(
+        patterns_file=str(_patterns_path) if _patterns_path else None,
+        config=config,
+    )
     filtered_tweets, _ = content_filter.filter_tweets(tweets)
     console.print(f"[green]Filtered to {len(filtered_tweets)} quality tweets[/green]")
 
@@ -39,7 +113,24 @@ def _run_ai_analysis(tweets: list, source: str, save: bool = False, output: Opti
     ]
 
     console.print("[cyan]Running AI analysis...[/cyan]")
-    result = asyncio.run(analyze_tweets_with_agent(tweet_texts))
+
+    # Load custom prompts if provided
+    sys_prompt = None
+    if system_prompt:
+        sys_prompt = Path(system_prompt).read_text(encoding="utf-8")
+
+    ana_prompt = None
+    if analysis_prompt:
+        ana_prompt = Path(analysis_prompt).read_text(encoding="utf-8")
+
+    result = asyncio.run(
+        analyze_tweets_with_agent(
+            tweet_texts,
+            system_prompt=sys_prompt,
+            analysis_prompt=ana_prompt,
+            config=config,
+        )
+    )
     console.print(Panel(result, title=f"AI Analysis: {source}", border_style="blue"))
 
     # Always save analysis to file
@@ -112,13 +203,40 @@ SAVE_HELP = "Save to file with auto-timestamped name."
 OUTPUT_HELP = "Save to file at specified path."
 
 
+@app.callback()
+def main_callback(
+    ctx: typer.Context,
+    config: Optional[str] = typer.Option(None, "--config", "-C", help="Path to configuration file (YAML)"),
+    system_prompt: Optional[str] = typer.Option(None, "--system-prompt", help="Path to custom system prompt (Markdown)"),
+    analysis_prompt: Optional[str] = typer.Option(None, "--analysis-prompt", help="Path to custom analysis prompt (Markdown)"),
+    patterns: Optional[str] = typer.Option(None, "--patterns", "-P", help="Path to custom filter patterns (YAML)"),
+):
+    """Global options for all commands."""
+    global _config_path, _system_prompt_path, _analysis_prompt_path, _patterns_path
+
+    _config_path = Path(config).expanduser() if config else None
+    _system_prompt_path = Path(system_prompt).expanduser() if system_prompt else None
+    _analysis_prompt_path = Path(analysis_prompt).expanduser() if analysis_prompt else None
+    _patterns_path = Path(patterns).expanduser() if patterns else None
+
+    # Store in context for subcommands to access
+    ctx.ensure_object(dict)
+    ctx.obj["config_path"] = _config_path
+    ctx.obj["system_prompt_path"] = _system_prompt_path
+    ctx.obj["analysis_prompt_path"] = _analysis_prompt_path
+    ctx.obj["patterns_path"] = _patterns_path
+
+
 @app.command()
 def timeline(
+    ctx: typer.Context,
     count: int = typer.Option(50, "--count", "-c", help="Number of tweets to fetch"),
     save: bool = typer.Option(False, "--save", "-s", help=SAVE_HELP),
     output: Optional[str] = typer.Option(None, "--output", "-o", help=OUTPUT_HELP),
     no_filter: bool = typer.Option(False, "--no-filter", help="Skip content filtering"),
     analyze: bool = typer.Option(False, "--analyze", help="Run AI analysis on fetched tweets"),
+    system_prompt: Optional[str] = typer.Option(None, "--system-prompt", help="Path to custom system prompt"),
+    analysis_prompt: Optional[str] = typer.Option(None, "--analysis-prompt", help="Path to custom analysis prompt"),
 ):
     """Fetch and optionally analyze your home timeline.
 
@@ -128,6 +246,7 @@ def timeline(
 
     client = BirdClient(count=count)
     filter_enabled = not no_filter
+    config = get_config()
 
     tweets = client.fetch_home_timeline()
     console.print(f"[green]Fetched {len(tweets)} tweets[/green]")
@@ -141,6 +260,8 @@ def timeline(
             min_engagement=3,
             filter_marketing=True,
             filter_self_improvement=True,
+            patterns_file=str(_patterns_path) if _patterns_path else None,
+            config=config,
         )
         filtered_tweets, _ = content_filter.filter_tweets(tweets)
         console.print(f"[green]Filtered to {len(filtered_tweets)} quality tweets[/green]")
@@ -152,7 +273,14 @@ def timeline(
         filtered_tweets = tweets
 
     if analyze:
-        _run_ai_analysis(tweets, "home_timeline", save=save, output=output)
+        _run_ai_analysis(
+            tweets,
+            "home_timeline",
+            save=save,
+            output=output,
+            system_prompt=system_prompt,
+            analysis_prompt=analysis_prompt,
+        )
         return
 
     parser = TweetParser()
@@ -162,12 +290,15 @@ def timeline(
 
 @app.command()
 def bookmarks(
+    ctx: typer.Context,
     count: int = typer.Option(50, "--count", "-c", help="Number of bookmarks to fetch"),
     save: bool = typer.Option(False, "--save", "-s", help=SAVE_HELP),
     output: Optional[str] = typer.Option(None, "--output", "-o", help=OUTPUT_HELP),
     no_filter: bool = typer.Option(False, "--no-filter", help="Skip content filtering"),
     analyze: bool = typer.Option(False, "--analyze", help="Run AI analysis on fetched bookmarks"),
     shuffle: bool = typer.Option(False, "--shuffle", help="Randomize bookmark order"),
+    system_prompt: Optional[str] = typer.Option(None, "--system-prompt", help="Path to custom system prompt"),
+    analysis_prompt: Optional[str] = typer.Option(None, "--analysis-prompt", help="Path to custom analysis prompt"),
 ):
     """Fetch and optionally analyze your bookmarks.
 
@@ -177,6 +308,7 @@ def bookmarks(
     console.print(Panel.fit("🔖 Fetching Bookmarks", style="cyan bold"))
 
     client = BirdClient(count=count)
+    config = get_config()
 
     if shuffle:
         all_tweets = client.fetch_all_bookmarks()
@@ -197,6 +329,8 @@ def bookmarks(
         content_filter = ContentFilter(
             min_engagement=2,
             filter_marketing=False,
+            patterns_file=str(_patterns_path) if _patterns_path else None,
+            config=config,
         )
         filtered_tweets, _ = content_filter.filter_tweets(tweets)
         console.print(f"[green]Kept {len(filtered_tweets)} bookmarks[/green]")
@@ -204,7 +338,14 @@ def bookmarks(
         filtered_tweets = tweets
 
     if analyze:
-        _run_ai_analysis(tweets, "bookmarks", save=save, output=output)
+        _run_ai_analysis(
+            tweets,
+            "bookmarks",
+            save=save,
+            output=output,
+            system_prompt=system_prompt,
+            analysis_prompt=analysis_prompt,
+        )
         return
 
     parser = TweetParser()
@@ -214,11 +355,14 @@ def bookmarks(
 
 @app.command()
 def user(
+    ctx: typer.Context,
     handle: str = typer.Argument(..., help="Twitter handle (with or without @)"),
     count: int = typer.Option(50, "--count", "-c", help="Number of tweets to fetch"),
     save: bool = typer.Option(False, "--save", "-s", help=SAVE_HELP),
     output: Optional[str] = typer.Option(None, "--output", "-o", help=OUTPUT_HELP),
     analyze: bool = typer.Option(False, "--analyze", help="Run AI analysis on fetched tweets"),
+    system_prompt: Optional[str] = typer.Option(None, "--system-prompt", help="Path to custom system prompt"),
+    analysis_prompt: Optional[str] = typer.Option(None, "--analysis-prompt", help="Path to custom analysis prompt"),
 ):
     """Fetch and optionally analyze tweets from a specific user.
 
@@ -237,7 +381,14 @@ def user(
 
     if analyze:
         clean = handle.lstrip('@')
-        _run_ai_analysis(tweets, f"@{clean}", save=save, output=output)
+        _run_ai_analysis(
+            tweets,
+            f"@{clean}",
+            save=save,
+            output=output,
+            system_prompt=system_prompt,
+            analysis_prompt=analysis_prompt,
+        )
         return
 
     parser = TweetParser()
@@ -248,11 +399,14 @@ def user(
 
 @app.command()
 def search(
+    ctx: typer.Context,
     query: str = typer.Argument(..., help="Search query"),
     count: int = typer.Option(50, "--count", "-c", help="Number of tweets to fetch"),
     save: bool = typer.Option(False, "--save", "-s", help=SAVE_HELP),
     output: Optional[str] = typer.Option(None, "--output", "-o", help=OUTPUT_HELP),
     analyze: bool = typer.Option(False, "--analyze", help="Run AI analysis on search results"),
+    system_prompt: Optional[str] = typer.Option(None, "--system-prompt", help="Path to custom system prompt"),
+    analysis_prompt: Optional[str] = typer.Option(None, "--analysis-prompt", help="Path to custom analysis prompt"),
 ):
     """Search for and optionally analyze tweets matching a query.
 
@@ -270,7 +424,14 @@ def search(
         raise typer.Exit()
 
     if analyze:
-        _run_ai_analysis(tweets, f"search_{query[:20]}", save=save, output=output)
+        _run_ai_analysis(
+            tweets,
+            f"search_{query[:20]}",
+            save=save,
+            output=output,
+            system_prompt=system_prompt,
+            analysis_prompt=analysis_prompt,
+        )
         return
 
     parser = TweetParser()

@@ -231,14 +231,14 @@ class ContentFilter:
 
         # Marketing filter
         if self.filter_marketing:
-            if self._check_patterns(tweet.text, MARKETING_PATTERNS):
+            if self._check_patterns(tweet.text, self.marketing_patterns):
                 return FilterResult(
                     tweet=tweet, passed=False, reason="Marketing content", score=score
                 )
 
         # Self-improvement filter
         if self.filter_self_improvement:
-            if self._check_keywords(tweet.text, SELF_IMPROVEMENT_KEYWORDS):
+            if self._check_keywords(tweet.text, self.self_improvement_keywords):
                 return FilterResult(
                     tweet=tweet,
                     passed=False,
@@ -248,11 +248,11 @@ class ContentFilter:
 
         # Spam filter
         if self.filter_spam:
-            if self._check_patterns(tweet.text, SPAM_PATTERNS):
+            if self._check_patterns(tweet.text, self.spam_patterns):
                 return FilterResult(
                     tweet=tweet, passed=False, reason="Spam detected", score=score
                 )
-            if self._check_patterns(tweet.text, LOW_QUALITY_PATTERNS):
+            if self._check_patterns(tweet.text, self.low_quality_patterns):
                 return FilterResult(
                     tweet=tweet, passed=False, reason="Low quality", score=score
                 )
