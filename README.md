@@ -1,5 +1,7 @@
 # X Without Junk 🐦
 
+![Demo output](docs/demo.png)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Claude Agent SDK](https://img.shields.io/badge/Claude_Agent_SDK-0.1.25+-green.svg)](https://github.com/anthropics/claude-agent-sdk)
@@ -237,8 +239,6 @@ uv run news-parser analyze --source timeline --count 50
 
 ## Output Structure
 
-![Demo output](docs/demo.png)
-
 Reports are saved to the `output/` directory by default:
 
 ```
@@ -402,6 +402,119 @@ news-parser timeline --analyze --patterns my_patterns.yaml
 ```
 
 The default prompts are provided in English. You can create custom prompts in any language.
+
+---
+
+## 🇷🇺 Описание реализации (Implementation Details)
+
+### Что было добавлено
+
+Система кастомизации для news-parser CLI, позволяющая пользователям конфигурировать оба уровня пайплайна анализа Twitter через конфигурационные файлы и внешние шаблоны промптов.
+
+### Новые файлы
+
+#### 1. `config.yaml` — главный файл конфигурации
+
+```yaml
+agent:
+  model: "claude-sonnet-4-5"
+  fallback_model: "claude-haiku-3-5"
+  max_budget_usd: 0.50
+  max_turns: 5
+
+prompts:
+  system: "prompts/system.md"
+  analysis: "prompts/analysis.md"
+
+filters:
+  enabled: true
+  min_score: 30
+  patterns_file: "config/patterns.yaml"
+
+output:
+  default_source: "timeline"
+  timestamp_format: "%Y%m%d_%H%M%S"
+```
+
+#### 2. `prompts/system.md` — системный промпт (английский)
+
+Заменил хардкоденный русский промпт на файл на английском языке.
+
+#### 3. `prompts/analysis.md` — промпт анализа
+
+Шаблон с плейсхолдерами `{tweets}` и `{focus}` для динамической подстановки.
+
+#### 4. `config/patterns.yaml` — паттерны фильтрации
+
+Четыре категории:
+- `marketing` — regex для маркетингового контента
+- `self_improvement` — ключевые слова для self-improvement
+- `spam` — regex для спама
+- `low_quality` — regex для низкокачественного контента
+
+### Изменения в коде
+
+#### `src/first_agent/filters.py`
+
+- Добавлен `patterns_file` параметр в `__init__`
+- Паттерны теперь загружаются из YAML или используются defaults
+- Добавлен метод `from_config()` для создания из словаря конфигурации
+- Паттерны хранятся как instance variables: `self.marketing_patterns`, `self.self_improvement_keywords`, `self.spam_patterns`, `self.low_quality_patterns`
+
+#### `src/first_agent/agent.py`
+
+- Добавлены функции:
+  - `load_prompt(path, variables)` — загрузка шаблона с подстановкой переменных
+  - `get_default_system_prompt()` — загрузка из `prompts/system.md`
+  - `get_default_analysis_prompt()` — загрузка из `prompts/analysis.md`
+
+- Убраны хардкоденные русские промпты
+- `get_agent_options()` теперь принимает `system_prompt` и `config` параметры
+- `analyze_tweets_with_agent()` принимает `system_prompt`, `analysis_prompt`, `config`
+- Поддержка плейсхолдеров `{tweets}` и `{focus}`
+
+#### `src/first_agent/main.py`
+
+- Добавлены глобальные CLI флагы (через callback):
+  - `--config, -C` — путь к YAML конфигу
+  - `--system-prompt` — путь к кастомному системному промпту
+  - `--analysis-prompt` — путь к кастомному промпту анализа
+  - `--patterns, -P` — путь к YAML с паттернами фильтрации
+
+- Добавлена функция `load_config()` с поиском в дефолтных локациях:
+  - `config.yaml`
+  - `./config.yaml`
+  - `~/.config/news-parser/config.yaml`
+
+- Обновлён `_run_ai_analysis()` для поддержки кастомных промптов
+- Все команды (timeline, bookmarks, user, search) обновлены для передачи новых опций
+
+#### Другие файлы
+
+- **`pyproject.toml`**: добавлен `pyyaml>=6.0.0` в dependencies
+- **`.gitignore`**: добавлены `config.yaml`, `config/user_patterns.yaml`, `prompts/custom_*.md`
+
+### Использование
+
+```bash
+# Дефолтное поведение (английские промпты)
+news-parser timeline --analyze
+
+# Кастомный конфиг
+news-parser --config my_config.yaml timeline --analyze
+
+# Кастомные промпты
+news-parser timeline --analyze \
+  --system-prompt my_system.md \
+  --analysis-prompt my_analysis.md
+
+# Кастомные паттерны
+news-parser timeline --analyze --patterns my_patterns.yaml
+```
+
+### Обратная совместимость
+
+Если конфиг не найден — используются дефолтные значения. Промпты загружаются из `prompts/*.md` или используются defaults.
 
 ## 🔧 Troubleshooting
 
