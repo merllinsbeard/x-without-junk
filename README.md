@@ -26,6 +26,33 @@ uv run news-parser status
 uv run news-parser timeline --count 5
 ```
 
+## 🤖 AI-Powered Analysis
+
+Unlock deeper insights with Claude AI analysis. Use the `--analyze` flag to get intelligent summaries and categorization of your Twitter content.
+
+```bash
+# Analyze your timeline with AI
+uv run news-parser timeline --analyze
+
+# Analyze bookmarks with custom focus
+uv run news-parser bookmarks --analyze --count 100
+
+# Analyze a specific user's tweets
+uv run news-parser user @anthropic --analyze
+
+# Analyze search results
+uv run news-parser search "Claude AI" --analyze --count 50
+```
+
+**AI analysis provides:**
+
+- **Smart categorization** - Automatically groups tweets by topic (news, threads, resources, discussions)
+- **Key insights** - Extracts the most important information and themes
+- **Trend detection** - Identifies emerging patterns and conversations
+- **Clean summaries** - Removes noise and highlights what matters
+
+Results are automatically saved to `output/analysis_*.md` files with timestamped filenames.
+
 ## 🏗️ Architecture
 
 ```
@@ -94,8 +121,8 @@ bird whoami
 
 ```bash
 # Clone repository
-git clone https://github.com/merllinsbeard/x-without-junk.git
-cd x-without-junk
+git clone https://github.com/merllinsbeard/first_agent_claudesdk.git
+cd first_agent_claudesdk
 
 # Install dependencies
 uv sync
@@ -129,6 +156,79 @@ API Key         ✓ Set
 Base URL        https://api.z.ai/api/anthropic
 Output directory ✓ Exists
 ```
+
+## 🔐 Authentication
+
+The tool supports two authentication methods:
+
+### Method 1: Browser-Based Authentication (Default)
+
+**Recommended for personal use and interactive sessions.**
+
+1. Run `bird login` in your terminal
+2. Authenticate in the browser window that opens
+3. No configuration needed - bird CLI stores your session
+
+Verify authentication:
+
+```bash
+bird whoami
+# Expected output: @yourusername
+```
+
+### Method 2: Headless Authentication (Environment Variables)
+
+**Recommended for CI/CD, servers, and automated workflows.**
+
+Headless authentication allows the tool to run without a browser by providing authentication tokens directly via environment variables.
+
+#### Extracting Authentication Tokens
+
+1. **Open X.com in your browser** while logged in
+2. **Open Developer Tools**:
+   - Chrome/Edge: `F12` or `Ctrl+Shift+I` (Windows/Linux) / `Cmd+Option+I` (Mac)
+   - Firefox: `F12` or `Ctrl+Shift+K` (Windows/Linux) / `Cmd+Option+K` (Mac)
+3. **Navigate to Application/Storage**:
+   - Chrome/Edge: Application tab → Storage → Cookies → https://x.com
+   - Firefox: Storage tab → Cookies → https://x.com
+4. **Find and copy two cookies**:
+   - `auth_token` → Copy the Value column
+   - `ct0` → Copy the Value column
+
+#### Configure Environment Variables
+
+Add to your `.env` file:
+
+```bash
+# X/Twitter Authentication (Headless)
+AUTH_TOKEN=your_auth_token_value_here
+CT0=your_ct0_value_here
+```
+
+**Security Notes:**
+
+- Treat these tokens as sensitive passwords
+- Never commit `.env` to version control
+- Tokens expire periodically and may need refreshing
+- Use separate tokens for different environments
+
+#### Verify Headless Authentication
+
+```bash
+uv run news-parser status
+```
+
+Expected output should show `Bird CLI ✓ Authenticated`
+
+#### When to Use Each Method
+
+| Scenario                | Recommended Method           |
+| ----------------------- | ---------------------------- |
+| Personal laptop/desktop | Browser-based (`bird login`) |
+| CI/CD pipelines         | Headless (env vars)          |
+| Docker containers       | Headless (env vars)          |
+| Remote servers          | Headless (env vars)          |
+| Interactive development | Browser-based (`bird login`) |
 
 ## 🚀 Usage
 
@@ -298,6 +398,8 @@ The agent reads configuration from the `.env` file:
 | -------------------- | ----------------------------- | -------------------------------- |
 | `ZAI_API_KEY`        | API key for z.ai or Anthropic | _Required_                       |
 | `ANTHROPIC_BASE_URL` | API base URL                  | `https://api.z.ai/api/anthropic` |
+| `AUTH_TOKEN`         | X.com auth token (headless)   | Use `bird login`                 |
+| `CT0`                | X.com CSRF token (headless)   | Use `bird login`                 |
 
 To get an API key, visit [https://console.z.ai](https://console.z.ai).
 
@@ -405,131 +507,40 @@ The default prompts are provided in English. You can create custom prompts in an
 
 ---
 
-## 🇷🇺 Описание реализации (Implementation Details)
-
-### Что было добавлено
-
-Система кастомизации для news-parser CLI, позволяющая пользователям конфигурировать оба уровня пайплайна анализа Twitter через конфигурационные файлы и внешние шаблоны промптов.
-
-### Новые файлы
-
-#### 1. `config.yaml` — главный файл конфигурации
-
-```yaml
-agent:
-  model: "claude-sonnet-4-5"
-  fallback_model: "claude-haiku-3-5"
-  max_budget_usd: 0.50
-  max_turns: 5
-
-prompts:
-  system: "prompts/system.md"
-  analysis: "prompts/analysis.md"
-
-filters:
-  enabled: true
-  min_score: 30
-  patterns_file: "config/patterns.yaml"
-
-output:
-  default_source: "timeline"
-  timestamp_format: "%Y%m%d_%H%M%S"
-```
-
-#### 2. `prompts/system.md` — системный промпт (английский)
-
-Заменил хардкоденный русский промпт на файл на английском языке.
-
-#### 3. `prompts/analysis.md` — промпт анализа
-
-Шаблон с плейсхолдерами `{tweets}` и `{focus}` для динамической подстановки.
-
-#### 4. `config/patterns.yaml` — паттерны фильтрации
-
-Четыре категории:
-- `marketing` — regex для маркетингового контента
-- `self_improvement` — ключевые слова для self-improvement
-- `spam` — regex для спама
-- `low_quality` — regex для низкокачественного контента
-
-### Изменения в коде
-
-#### `src/first_agent/filters.py`
-
-- Добавлен `patterns_file` параметр в `__init__`
-- Паттерны теперь загружаются из YAML или используются defaults
-- Добавлен метод `from_config()` для создания из словаря конфигурации
-- Паттерны хранятся как instance variables: `self.marketing_patterns`, `self.self_improvement_keywords`, `self.spam_patterns`, `self.low_quality_patterns`
-
-#### `src/first_agent/agent.py`
-
-- Добавлены функции:
-  - `load_prompt(path, variables)` — загрузка шаблона с подстановкой переменных
-  - `get_default_system_prompt()` — загрузка из `prompts/system.md`
-  - `get_default_analysis_prompt()` — загрузка из `prompts/analysis.md`
-
-- Убраны хардкоденные русские промпты
-- `get_agent_options()` теперь принимает `system_prompt` и `config` параметры
-- `analyze_tweets_with_agent()` принимает `system_prompt`, `analysis_prompt`, `config`
-- Поддержка плейсхолдеров `{tweets}` и `{focus}`
-
-#### `src/first_agent/main.py`
-
-- Добавлены глобальные CLI флагы (через callback):
-  - `--config, -C` — путь к YAML конфигу
-  - `--system-prompt` — путь к кастомному системному промпту
-  - `--analysis-prompt` — путь к кастомному промпту анализа
-  - `--patterns, -P` — путь к YAML с паттернами фильтрации
-
-- Добавлена функция `load_config()` с поиском в дефолтных локациях:
-  - `config.yaml`
-  - `./config.yaml`
-  - `~/.config/news-parser/config.yaml`
-
-- Обновлён `_run_ai_analysis()` для поддержки кастомных промптов
-- Все команды (timeline, bookmarks, user, search) обновлены для передачи новых опций
-
-#### Другие файлы
-
-- **`pyproject.toml`**: добавлен `pyyaml>=6.0.0` в dependencies
-- **`.gitignore`**: добавлены `config.yaml`, `config/user_patterns.yaml`, `prompts/custom_*.md`
-
-### Использование
-
-```bash
-# Дефолтное поведение (английские промпты)
-news-parser timeline --analyze
-
-# Кастомный конфиг
-news-parser --config my_config.yaml timeline --analyze
-
-# Кастомные промпты
-news-parser timeline --analyze \
-  --system-prompt my_system.md \
-  --analysis-prompt my_analysis.md
-
-# Кастомные паттерны
-news-parser timeline --analyze --patterns my_patterns.yaml
-```
-
-### Обратная совместимость
-
-Если конфиг не найден — используются дефолтные значения. Промпты загружаются из `prompts/*.md` или используются defaults.
-
 ## 🔧 Troubleshooting
 
-| Problem                                        | Solution                                                       |
-| ---------------------------------------------- | -------------------------------------------------------------- |
-| `bird: command not found`                      | Install bird CLI: `brew install bird`                          |
-| `python: command not found`                    | Install Python 3.12+ from python.org                           |
-| `uv: command not found`                        | Install uv: `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
-| `No API key found`                             | Check `.env` file exists and contains `ZAI_API_KEY`            |
-| `Bird CLI not authenticated`                   | Run `bird login` and authenticate in browser                   |
-| `ModuleNotFoundError: No module 'first_agent'` | Run `uv sync` to install dependencies                          |
-| API returns 401/403                            | Check `ANTHROPIC_BASE_URL` in `.env`                           |
-| MiniMax API errors                             | Try switching to z.ai or Anthropic API key                     |
+| Problem                                        | Solution                                                                                                  |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `bird: command not found`                      | Install bird CLI: `brew install bird`                                                                     |
+| `python: command not found`                    | Install Python 3.12+ from python.org                                                                      |
+| `uv: command not found`                        | Install uv: `curl -LsSf https://astral.sh/uv/install.sh \| sh`                                            |
+| `No API key found`                             | Check `.env` file exists and contains `ZAI_API_KEY`                                                       |
+| `Bird CLI not authenticated`                   | Run `bird login` and authenticate in browser                                                              |
+| `Bird CLI auth fails with headless tokens`     | Tokens may be expired. Re-extract from browser and update `.env`. Ensure both AUTH_TOKEN and CT0 are set. |
+| `bird login not available in CI/CD`            | Use headless authentication by setting AUTH_TOKEN and CT0 environment variables                           |
+| `401 Unauthorized with headless auth`          | Verify tokens are correctly copied from browser cookies. Check for extra spaces or quotes in `.env`       |
+| `ModuleNotFoundError: No module 'first_agent'` | Run `uv sync` to install dependencies                                                                     |
+| API returns 401/403                            | Check `ANTHROPIC_BASE_URL` in `.env`                                                                      |
+| MiniMax API errors                             | Try switching to z.ai or Anthropic API key                                                                |
 
 ## Development
+
+### Setup Development Environment
+
+```bash
+# Clone the repository
+git clone https://github.com/merllinsbeard/first_agent_claudesdk.git
+cd first_agent_claudesdk
+
+# Install dependencies in development mode
+uv sync
+
+# Create a local environment file
+cp .env.example .env
+# Edit .env and add your API key
+```
+
+### Code Quality
 
 Run with type checking:
 
@@ -537,11 +548,39 @@ Run with type checking:
 uv run mypy src/
 ```
 
+### Testing
+
 Run tests:
 
 ```bash
 uv run pytest
 ```
+
+Run tests with coverage:
+
+```bash
+uv run pytest --cov=first_agent --cov-report=html
+```
+
+### Project Structure
+
+```
+src/first_agent/
+├── __init__.py      # Package initialization
+├── main.py          # CLI entry point (Typer commands)
+├── agent.py         # Claude Agent SDK integration
+├── bird_client.py   # Bird CLI wrapper (Tweet dataclass)
+├── filters.py       # Content filtering logic
+└── parsers.py       # Tweet parsing and Markdown output
+```
+
+### Development Guidelines
+
+- Use type hints for all functions
+- Prefer `@dataclass(frozen=True)` for immutable data structures
+- Follow PEP 8 style guidelines
+- Keep modules focused on single responsibilities
+- Use Rich console for CLI output formatting
 
 ## Contributing
 

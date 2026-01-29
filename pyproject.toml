@@ -33,7 +33,16 @@ Issues = "https://github.com/merllinsbeard/first_agent_claudesdk/issues"
 news-parser = "first_agent.main:main"
 
 [tool.uv]
-dev-dependencies = []
+dev-dependencies = [
+    "pytest>=8.0",
+    "pytest-mock>=3.12",
+    "pytest-cov>=5.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-v --tb=short"
 
 [build-system]
 requires = ["hatchling"]

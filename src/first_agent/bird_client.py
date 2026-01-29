@@ -1,6 +1,7 @@
 """Wrapper for bird CLI commands to fetch X/Twitter content."""
 
 import json
+import os
 import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -122,6 +123,38 @@ class BirdClient:
         """
         self.count = count
 
+    def _get_bird_env(self) -> dict[str, str]:
+        """Build environment dict for bird CLI subprocess calls.
+
+        Includes AUTH_TOKEN and CT0 if set for headless authentication.
+        Strips whitespace and validates tokens before use.
+
+        Returns:
+            Environment dictionary with auth tokens if available.
+
+        Note:
+            When AUTH_TOKEN and CT0 are not set, returns a copy of the current
+            environment, maintaining backward compatibility with browser-based auth.
+        """
+        env = os.environ.copy()
+
+        auth_token = os.environ.get("AUTH_TOKEN")
+        ct0 = os.environ.get("CT0")
+
+        # Validate and strip whitespace from tokens
+        # Remove invalid/empty tokens to prevent them from being passed to subprocess
+        if auth_token and len(auth_token.strip()) > 0:
+            env["AUTH_TOKEN"] = auth_token.strip()
+        else:
+            env.pop("AUTH_TOKEN", None)
+
+        if ct0 and len(ct0.strip()) > 0:
+            env["CT0"] = ct0.strip()
+        else:
+            env.pop("CT0", None)
+
+        return env
+
     def _run_bird_command(
         self, command: str, args: list[str] | None = None, timeout: int = 60
     ) -> list[dict]:
@@ -150,6 +183,7 @@ class BirdClient:
             text=True,
             check=True,
             timeout=timeout,
+            env=self._get_bird_env(),
         )
 
         if not result.stdout.strip():
@@ -222,7 +256,8 @@ class BirdClient:
             console.print(f"[dim]Running: {' '.join(cmd)}[/dim]")
 
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=60
+                cmd, capture_output=True, text=True, timeout=60,
+                env=self._get_bird_env(),
             )
 
             if result.returncode != 0 or not result.stdout.strip():
@@ -299,6 +334,7 @@ class BirdClient:
                 text=True,
                 check=True,
                 timeout=10,
+                env=self._get_bird_env(),
             )
             return "@" in result.stdout
         except subprocess.CalledProcessError:

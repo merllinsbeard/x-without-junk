@@ -452,6 +452,10 @@ def status():
     bird_auth = client.verify_credentials()
     table.add_row("Bird CLI", "✓ Authenticated" if bird_auth else "✗ Not authenticated")
 
+    # Show authentication method
+    auth_method = "Headless (env vars)" if os.getenv("AUTH_TOKEN") else "Browser (bird login)"
+    table.add_row("Auth method", auth_method)
+
     api_key = os.getenv("ZAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
     table.add_row("API Key", "✓ Set" if api_key else "✗ Not set")
 
