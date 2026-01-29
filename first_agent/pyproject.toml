@@ -1,0 +1,39 @@
+[project]
+name = "first-agent"
+version = "0.1.0"
+description = "X/Twitter News Parser Agent - Fetch, filter, and analyze tweets with Claude AI"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [
+    { name = "merlin", email = "144795773+merllinsbeard@users.noreply.github.com" }
+]
+keywords = ["twitter", "x", "news", "parser", "claude", "ai", "agent"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "claude-agent-sdk>=0.1.25",
+    "rich>=14.3.1",
+    "typer>=0.21.1",
+    "python-dotenv>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/merllinsbeard/first_agent_claudesdk"
+Repository = "https://github.com/merllinsbeard/first_agent_claudesdk"
+Issues = "https://github.com/merllinsbeard/first_agent_claudesdk/issues"
+
+[project.scripts]
+news-parser = "first_agent.main:main"
+
+[tool.uv]
+dev-dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
