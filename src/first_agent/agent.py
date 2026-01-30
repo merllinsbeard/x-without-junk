@@ -13,8 +13,16 @@ load_dotenv(override=True)
 
 console = Console()
 
+def find_repo_root(start_path: Path) -> Path:
+    """Find the repository root by searching for pyproject.toml."""
+    for parent in [start_path, *start_path.parents]:
+        if (parent / "pyproject.toml").exists():
+            return parent
+    return start_path.parent.parent.resolve()
+
+
 # Get project root dynamically
-DEFAULT_CWD = Path(__file__).parent.parent.resolve()
+DEFAULT_CWD = find_repo_root(Path(__file__).resolve())
 
 # Default paths for prompts (relative to project root)
 DEFAULT_SYSTEM_PROMPT_PATH = DEFAULT_CWD / "prompts" / "system.md"
