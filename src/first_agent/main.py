@@ -87,6 +87,9 @@ def _run_ai_analysis(
     output: Optional[str] = None,
     system_prompt: Optional[str] = None,
     analysis_prompt: Optional[str] = None,
+    filtered_tweets: Optional[list] = None,
+    filter_enabled: bool = True,
+    filter_kwargs: Optional[dict] = None,
 ) -> None:
     """Run AI analysis on filtered tweets, display and optionally save results.
 
@@ -97,14 +100,30 @@ def _run_ai_analysis(
         output: If set, save to this specific path.
         system_prompt: Optional path to custom system prompt.
         analysis_prompt: Optional path to custom analysis prompt.
+        filtered_tweets: Optional pre-filtered tweets (skips internal filtering).
+        filter_enabled: Whether to apply filtering if filtered_tweets not provided.
+        filter_kwargs: Optional kwargs to pass into ContentFilter.
     """
     config = get_config()
-    content_filter = ContentFilter(
-        patterns_file=str(_patterns_path) if _patterns_path else None,
-        config=config,
-    )
-    filtered_tweets, _ = content_filter.filter_tweets(tweets)
-    console.print(f"[green]Filtered to {len(filtered_tweets)} quality tweets[/green]")
+    if filtered_tweets is None:
+        if filter_enabled:
+            kwargs = {
+                "patterns_file": str(_patterns_path) if _patterns_path else None,
+                "config": config,
+            }
+            if filter_kwargs:
+                kwargs |= filter_kwargs
+            content_filter = ContentFilter(**kwargs)
+            filtered_tweets, _ = content_filter.filter_tweets(tweets)
+            console.print(f"[green]Filtered to {len(filtered_tweets)} quality tweets[/green]")
+        else:
+            filtered_tweets = tweets
+    else:
+        console.print(f"[green]Using {len(filtered_tweets)} tweets for analysis[/green]")
+
+    if not filtered_tweets:
+        console.print("[yellow]No tweets to analyze after filtering[/yellow]")
+        return
 
     # Extract tweet texts (limited for token efficiency)
     tweet_texts = [
@@ -280,6 +299,13 @@ def timeline(
             output=output,
             system_prompt=system_prompt,
             analysis_prompt=analysis_prompt,
+            filtered_tweets=filtered_tweets,
+            filter_enabled=filter_enabled,
+            filter_kwargs={
+                "min_engagement": 3,
+                "filter_marketing": True,
+                "filter_self_improvement": True,
+            },
         )
         return
 
@@ -345,6 +371,12 @@ def bookmarks(
             output=output,
             system_prompt=system_prompt,
             analysis_prompt=analysis_prompt,
+            filtered_tweets=filtered_tweets,
+            filter_enabled=not no_filter,
+            filter_kwargs={
+                "min_engagement": 2,
+                "filter_marketing": False,
+            },
         )
         return
 

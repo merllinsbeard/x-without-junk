@@ -174,6 +174,8 @@ class ContentFilter:
         Returns:
             True if any pattern matches.
         """
+        if not patterns:
+            return False
         combined = "|".join(patterns)
         return bool(re.search(combined, text, re.IGNORECASE))
 

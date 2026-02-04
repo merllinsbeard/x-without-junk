@@ -61,6 +61,16 @@ def get_default_analysis_prompt() -> str:
     """
     return load_prompt(DEFAULT_ANALYSIS_PROMPT_PATH)
 
+
+def render_analysis_prompt(template: str, tweets: str, focus: str) -> str:
+    """Render analysis prompt without str.format to avoid brace parsing issues.
+
+    The template uses {tweets} and {focus} placeholders. Using a direct
+    replacement avoids KeyError/ValueError when the template contains
+    unrelated braces.
+    """
+    return template.replace("{tweets}", tweets).replace("{focus}", focus)
+
 def get_agent_options(
     base_url: str | None = None,
     api_key: str | None = None,
@@ -218,7 +228,7 @@ async def analyze_tweets_with_agent(
             analysis_prompt = get_default_analysis_prompt()
 
     # Substitute placeholders in the analysis prompt
-    prompt = analysis_prompt.format(tweets=tweets_text, focus=focus)
+    prompt = render_analysis_prompt(analysis_prompt, tweets_text, focus)
 
     # Get options with custom system prompt if provided
     options = get_agent_options(system_prompt=system_prompt, config=config)
