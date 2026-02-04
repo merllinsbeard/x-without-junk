@@ -1,6 +1,7 @@
 """CLI entry point for the News Parser Agent."""
 
 import asyncio
+import json
 import os
 import random
 import shlex
@@ -124,6 +125,19 @@ def _run_ai_analysis(
     if not filtered_tweets:
         console.print("[yellow]No tweets to analyze after filtering[/yellow]")
         return
+
+    # Cross-run deduplication: skip tweets already seen in previous reports
+    seen_ids_file = os.environ.get("SEEN_IDS_FILE")
+    if seen_ids_file and Path(seen_ids_file).exists():
+        try:
+            seen_ids = set(json.loads(Path(seen_ids_file).read_text(encoding="utf-8")))
+        except (json.JSONDecodeError, OSError):
+            seen_ids = set()
+        before = len(filtered_tweets)
+        filtered_tweets = [t for t in filtered_tweets if t.id not in seen_ids]
+        deduped = before - len(filtered_tweets)
+        if deduped:
+            console.print(f"[dim]{deduped} tweets skipped (already in previous reports)[/dim]")
 
     # Extract tweet texts (limited for token efficiency)
     tweet_texts = [
@@ -293,7 +307,7 @@ def timeline(
 
     if analyze:
         _run_ai_analysis(
-            tweets,
+            filtered_tweets,
             "home_timeline",
             save=save,
             output=output,
@@ -365,7 +379,7 @@ def bookmarks(
 
     if analyze:
         _run_ai_analysis(
-            tweets,
+            filtered_tweets,
             "bookmarks",
             save=save,
             output=output,
